@@ -77,15 +77,71 @@ app.post("/api/users/:_id/exercises", urlEncodedParser, async (req, res) => {
 });
 app.get("/api/users/:_id/logs", async (req, res) => {
     const id = req.params._id;
+    const findParams = [
+        {
+            $match: { _id: new mongoose.Types.ObjectId(id) },
+        },
+        {
+            $project: {
+                _id: 1,
+                username: 1,
+                log: 1,
+            },
+        },
+        {
+            $project: {
+                count: { $size: "$log" },
+                log: {
+                    date: 1,
+                    duration: 1,
+                    description: 1,
+                },
+            },
+        },
+    ];
+    const { from, to, limit } = req.query;
+    if (from || to || limit) {
+        let logSearch = 1;
+        if (from || to) {
+            logSearch = {
+                $filter: {
+                    input: "$log",
+                    as: "item",
+                    cond: {},
+                },
+            };
+            const conditions = [];
+            if (from) {
+                conditions.push({ $gte: ["$$item.date", new Date(from)] });
+            }
+            if (to) {
+                conditions.push({ $lte: ["$$item.date", new Date(to)] });
+            }
+            if (conditions.length > 1) {
+                logSearch.$filter.cond = { $and: conditions };
+            } else {
+                logSearch.$filter.cond = conditions[0];
+            }
+        }
+        if (limit) {
+            findParams[1].$project.log = {
+                $slice: [
+                    typeof logSearch === "number" ? "$log" : logSearch,
+                    Number(limit),
+                ],
+            };
+        } else {
+            findParams[1].$project.log = logSearch;
+        }
+    }
     try {
-        const user = await User.findById(id).exec();
+        const users = await User.aggregate(findParams).exec();
+        const user = users[0];
+        console.log(user);
         res.json({
-            _id: user._id,
-            username: user.username,
-            count: user.log.length,
+            ...user,
             log: user.log.map((item) => ({
-                description: item.description,
-                duration: item.duration,
+                ...item,
                 date: item.date.toDateString(),
             })),
         });
