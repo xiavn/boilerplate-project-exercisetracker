@@ -75,6 +75,24 @@ app.post("/api/users/:_id/exercises", urlEncodedParser, async (req, res) => {
     };
     await saveExercise();
 });
+app.get("/api/users/:_id/logs", async (req, res) => {
+    const id = req.params._id;
+    try {
+        const user = await User.findById(id).exec();
+        res.json({
+            _id: user._id,
+            username: user.username,
+            count: user.log.length,
+            log: user.log.map((item) => ({
+                description: item.description,
+                duration: item.duration,
+                date: item.date.toDateString(),
+            })),
+        });
+    } catch (error) {
+        console.log(error);
+    }
+});
 
 const listener = app.listen(process.env.PORT || 3000, () => {
     console.log("Your app is listening on port " + listener.address().port);
